@@ -50,3 +50,8 @@ def webhook():
     headers = {"X-MBX-APIKEY": os.getenv("RwfBf5ZAdWTvoqfa0w59MUxGamfto6SYdLKjuIERKeorPg0l7wHS5JLZZUh22yCW")}
     r = requests.post("https://api.binance.com/api/v3/order", headers=headers, params=params)
     return jsonify(r.json())
+
+    if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
