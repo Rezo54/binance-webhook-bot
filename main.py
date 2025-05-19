@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    return "Binance webhook bot is running."
+    return "✅ Binance webhook bot is live."
 
 BINANCE_API_KEY = os.getenv('RwfBf5ZAdWTvoqfa0w59MUxGamfto6SYdLKjuIERKeorPg0l7wHS5JLZZUh22yCW')
 BINANCE_SECRET_KEY = os.getenv('IKtF2T91DI4FuyfBqBcxEFIXlyouzkeRLD5EVf87Q0KEptdBOsm3yUpSwlMYDRsv')
