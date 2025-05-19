@@ -17,6 +17,7 @@ app = Flask(__name__)
 start_balance_usdc = None
 max_drawdown_pct = 10  # Stop if USDC drops more than 10%
 max_profit_pct = 10    # Stop if USDC grows more than 10%
+target_profit_pct = 1.2  # 1.2% target for limit sell after buy
 
 @app.route("/")
 def index():
@@ -74,7 +75,6 @@ def send_order(symbol, action, size):
             return {"error": f"📈 Daily profit cap hit: {change_pct:.2f}%"}
 
         if action.upper() == "BUY":
-            # === Safety: Skip BUY if already holding ETH ===
             base_asset = symbol.upper().replace("USDC", "")
             asset_balance = get_spot_balance(base_asset)
             if asset_balance > 0.001:
@@ -85,6 +85,48 @@ def send_order(symbol, action, size):
                 return {"error": f"Trade amount too small (${trade_usdc}). Minimum is $5."}
             params["quoteOrderQty"] = trade_usdc
 
+            # Place market BUY
+            query_string = '&'.join([f"{k}={params[k]}" for k in params])
+            signature = hmac.new(
+                BINANCE_SECRET_KEY.encode(),
+                query_string.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            params["signature"] = signature
+            headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+            response = requests.post(f"{BASE_URL}/api/v3/order", headers=headers, params=params)
+            buy_result = response.json()
+
+            if "fills" not in buy_result:
+                return {"error": "BUY order did not return fills", "details": buy_result}
+
+            # Get avg fill price and quantity bought
+            fills = buy_result.get("fills", [])
+            total_qty = sum(float(f["qty"]) for f in fills)
+            total_cost = sum(float(f["qty"]) * float(f["price"]) for f in fills)
+            avg_price = total_cost / total_qty if total_qty else 0
+            target_price = round(avg_price * (1 + target_profit_pct / 100), 2)
+
+            print(f"🎯 Target price set at {target_price} for {total_qty} {base_asset}")
+
+            # Place limit SELL at target
+            sell_params = {
+                "symbol": symbol.upper(),
+                "side": "SELL",
+                "type": "LIMIT",
+                "quantity": round(total_qty, 6),
+                "price": target_price,
+                "timeInForce": "GTC",
+                "timestamp": int(time.time() * 1000)
+            }
+            sell_qs = '&'.join([f"{k}={sell_params[k]}" for k in sell_params])
+            sell_sig = hmac.new(BINANCE_SECRET_KEY.encode(), sell_qs.encode(), hashlib.sha256).hexdigest()
+            sell_params["signature"] = sell_sig
+            sell_resp = requests.post(f"{BASE_URL}/api/v3/order", headers=headers, params=sell_params)
+            sell_result = sell_resp.json()
+
+            return {"buy": buy_result, "limit_sell": sell_result}
+
         elif action.upper() == "SELL":
             base_asset = symbol.upper().replace("USDC", "")
             balance = get_spot_balance(base_asset)
@@ -92,20 +134,19 @@ def send_order(symbol, action, size):
                 return {"error": f"No {base_asset} balance available to sell."}
             params["quantity"] = round(balance, 6)
 
+            query_string = '&'.join([f"{k}={params[k]}" for k in params])
+            signature = hmac.new(
+                BINANCE_SECRET_KEY.encode(),
+                query_string.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            params["signature"] = signature
+            headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+            response = requests.post(f"{BASE_URL}/api/v3/order", headers=headers, params=params)
+            return response.json()
+
         else:
             return {"error": f"Invalid action: {action}"}
-
-        query_string = '&'.join([f"{k}={params[k]}" for k in params])
-        signature = hmac.new(
-            BINANCE_SECRET_KEY.encode(),
-            query_string.encode(),
-            hashlib.sha256
-        ).hexdigest()
-        params["signature"] = signature
-
-        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
-        response = requests.post(f"{BASE_URL}/api/v3/order", headers=headers, params=params)
-        return response.json()
 
     except Exception as e:
         return {"error": str(e)}
