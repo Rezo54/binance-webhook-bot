@@ -7,6 +7,10 @@ import os
 
 print("✅ Flask app loaded successfully")
 
+# Load Binance API keys from environment
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -41,16 +45,17 @@ def webhook():
 
     query_string = '&'.join([f"{k}={params[k]}" for k in params])
     signature = hmac.new(
-        os.getenv("IKtF2T91DI4FuyfBqBcxEFIXlyouzkeRLD5EVf87Q0KEptdBOsm3yUpSwlMYDRsv").encode(),
+        BINANCE_SECRET_KEY.encode(),
         query_string.encode(),
         hashlib.sha256
     ).hexdigest()
     params["signature"] = signature
 
-    headers = {"X-MBX-APIKEY": os.getenv("RwfBf5ZAdWTvoqfa0w59MUxGamfto6SYdLKjuIERKeorPg0l7wHS5JLZZUh22yCW")}
-    r = requests.post("https://api.binance.com/api/v3/order", headers=headers, params=params)
-    return jsonify(r.json())
+    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+    response = requests.post("https://api.binance.com/api/v3/order", headers=headers, params=params)
     
+    return jsonify(response.json())
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
