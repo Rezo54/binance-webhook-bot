@@ -13,6 +13,11 @@ BASE_URL = "https://api.binance.com"
 
 app = Flask(__name__)
 
+# === Safety caps ===
+start_balance_usdc = None
+max_drawdown_pct = 10  # Stop if USDC drops more than 10%
+max_profit_pct = 10    # Stop if USDC grows more than 10%
+
 @app.route("/")
 def index():
     return "✅ Binance webhook bot is live."
@@ -44,6 +49,8 @@ def get_spot_balance(asset):
 # === Send market order ===
 def send_order(symbol, action, size):
     try:
+        global start_balance_usdc
+
         timestamp = int(time.time() * 1000)
         params = {
             "symbol": symbol.upper(),
@@ -52,18 +59,34 @@ def send_order(symbol, action, size):
             "timestamp": timestamp
         }
 
+        quote_asset = "USDC"
+        current_balance = get_spot_balance(quote_asset)
+
+        if start_balance_usdc is None:
+            start_balance_usdc = current_balance
+            print(f"📌 Opening balance: {start_balance_usdc:.2f} USDC")
+
+        # === Safety Cap: Daily PnL check ===
+        change_pct = ((current_balance - start_balance_usdc) / start_balance_usdc) * 100
+        if change_pct <= -max_drawdown_pct:
+            return {"error": f"📉 Daily loss cap hit: {change_pct:.2f}%"}
+        if change_pct >= max_profit_pct:
+            return {"error": f"📈 Daily profit cap hit: {change_pct:.2f}%"}
+
         if action.upper() == "BUY":
-            quote_asset = "USDC"
-            balance = get_spot_balance(quote_asset)
-            if balance <= 0:
-                return {"error": f"No {quote_asset} balance available to buy."}
-            trade_usdc = round((balance * size) / 100, 2)
+            # === Safety: Skip BUY if already holding ETH ===
+            base_asset = symbol.upper().replace("USDC", "")
+            asset_balance = get_spot_balance(base_asset)
+            if asset_balance > 0.001:
+                return {"error": f"📦 Already holding {base_asset} — skipping BUY"}
+
+            trade_usdc = round((current_balance * size) / 100, 2)
             if trade_usdc < 5:
                 return {"error": f"Trade amount too small (${trade_usdc}). Minimum is $5."}
             params["quoteOrderQty"] = trade_usdc
 
         elif action.upper() == "SELL":
-            base_asset = symbol.upper().replace("USDC", "")  # e.g., ETH from ETHUSDC
+            base_asset = symbol.upper().replace("USDC", "")
             balance = get_spot_balance(base_asset)
             if balance <= 0:
                 return {"error": f"No {base_asset} balance available to sell."}
@@ -87,7 +110,6 @@ def send_order(symbol, action, size):
     except Exception as e:
         return {"error": str(e)}
 
-# === Webhook route ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json()
@@ -109,7 +131,6 @@ def webhook():
     print("✅ Binance response:", result)
     return jsonify(result)
 
-# === Run server ===
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
