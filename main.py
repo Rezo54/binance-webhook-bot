@@ -5,6 +5,8 @@ import hashlib
 import time
 import os
 
+print("✅ Flask app loaded successfully")
+
 app = Flask(__name__)
 
 BINANCE_API_KEY = os.getenv('RwfBf5ZAdWTvoqfa0w59MUxGamfto6SYdLKjuIERKeorPg0l7wHS5JLZZUh22yCW')
