@@ -16,7 +16,7 @@ app = Flask(__name__)
 # === Safety caps ===
 start_balance_usdc = None
 max_drawdown_pct = 5  # Stop if USDC drops more than 5%
-max_profit_pct = 5    # Stop if USDC grows more than 5%
+max_profit_pct = 3    # Stop if USDC grows more than 5%
 target_profit_pct = 1.5  # 1.2% target for limit sell after buy
 
 @app.route("/")
