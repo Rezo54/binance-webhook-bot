@@ -69,7 +69,7 @@ def send_order(symbol, action, size):
 
         # Proceed only if starting balance is valid
         if start_balance_usdc > 0:
-        change_pct = ((current_balance - start_balance_usdc) / start_balance_usdc) * 100
+            change_pct = ((current_balance - start_balance_usdc) / start_balance_usdc) * 100
         if change_pct <= -max_drawdown_pct:
             return {"error": f"📉 Daily loss cap hit: {change_pct:.2f}%"}
         if change_pct >= max_profit_pct:
