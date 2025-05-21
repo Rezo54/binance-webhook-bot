@@ -63,17 +63,18 @@ def send_order(symbol, action, size):
         quote_asset = "USDC"
         current_balance = get_spot_balance(quote_asset)
 
-        if start_balance_usdc is None:
+        if start_balance_usdc is None or start_balance_usdc == 0:
             start_balance_usdc = current_balance
-            print(f"📌 Opening balance: {start_balance_usdc:.2f} USDC")
+            print(f"📌 Opening balance initialized: {start_balance_usdc:.2f} USDC")
 
-        # === Safety Cap: Daily PnL check ===
+        # Proceed only if starting balance is valid
+        if start_balance_usdc > 0:
         change_pct = ((current_balance - start_balance_usdc) / start_balance_usdc) * 100
         if change_pct <= -max_drawdown_pct:
             return {"error": f"📉 Daily loss cap hit: {change_pct:.2f}%"}
         if change_pct >= max_profit_pct:
             return {"error": f"📈 Daily profit cap hit: {change_pct:.2f}%"}
-
+    
         if action.upper() == "BUY":
             base_asset = symbol.upper().replace("USDC", "")
             asset_balance = get_spot_balance(base_asset)
