@@ -13,12 +13,6 @@ BASE_URL = "https://api.binance.com"
 
 app = Flask(__name__)
 
-# === Safety caps ===
-start_balance_usdc = None
-max_drawdown_pct = 5  # Stop if USDC drops more than 5%
-max_profit_pct = 3    # Stop if USDC grows more than 5%
-target_profit_pct = 1.5  # 1.2% target for limit sell after buy
-
 @app.route("/")
 def index():
     return "✅ Binance webhook bot is live."
@@ -50,8 +44,6 @@ def get_spot_balance(asset):
 # === Send market order ===
 def send_order(symbol, action, size):
     try:
-        global start_balance_usdc
-
         timestamp = int(time.time() * 1000)
         params = {
             "symbol": symbol.upper(),
@@ -63,18 +55,6 @@ def send_order(symbol, action, size):
         quote_asset = "USDC"
         current_balance = get_spot_balance(quote_asset)
 
-        if start_balance_usdc is None or start_balance_usdc == 0:
-            start_balance_usdc = current_balance
-            print(f"📌 Opening balance initialized: {start_balance_usdc:.2f} USDC")
-
-        # Proceed only if starting balance is valid
-        if start_balance_usdc > 0:
-            change_pct = ((current_balance - start_balance_usdc) / start_balance_usdc) * 100
-        if change_pct <= -max_drawdown_pct:
-            return {"error": f"📉 Daily loss cap hit: {change_pct:.2f}%"}
-        if change_pct >= max_profit_pct:
-            return {"error": f"📈 Daily profit cap hit: {change_pct:.2f}%"}
-    
         if action.upper() == "BUY":
             base_asset = symbol.upper().replace("USDC", "")
             asset_balance = get_spot_balance(base_asset)
@@ -101,16 +81,14 @@ def send_order(symbol, action, size):
             if "fills" not in buy_result:
                 return {"error": "BUY order did not return fills", "details": buy_result}
 
-            # Get avg fill price and quantity bought
             fills = buy_result.get("fills", [])
             total_qty = sum(float(f["qty"]) for f in fills)
             total_cost = sum(float(f["qty"]) * float(f["price"]) for f in fills)
             avg_price = total_cost / total_qty if total_qty else 0
-            target_price = round(avg_price * (1 + target_profit_pct / 100), 2)
+            target_price = round(avg_price * 1.015, 2)
 
             print(f"🎯 Target price set at {target_price} for {total_qty} {base_asset}")
 
-            # Place limit SELL at target
             sell_params = {
                 "symbol": symbol.upper(),
                 "side": "SELL",
