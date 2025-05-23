@@ -58,7 +58,7 @@ def send_order(symbol, action, size):
         if action.upper() == "BUY":
             base_asset = symbol.upper().replace("USDC", "")
             asset_balance = get_spot_balance(base_asset)
-            if asset_balance > 0.001:
+            if asset_balance > 0.2:
                 return {"error": f"📦 Already holding {base_asset} — skipping BUY"}
 
             trade_usdc = round((current_balance * size) / 100, 2)
